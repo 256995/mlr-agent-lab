@@ -29,3 +29,34 @@ Fields per entry: **date · model (from `/status`) · asked · checked · result
 - **Result:** 5 files created (`AGENTS.md`, `CLAUDE.md`, `README.md`, `PLAN.md`, `RUNS.md`).
   No Python project files, no deps, no git.
 - **Open:** `/status` model value; lab's real goal; whether to proceed with `uv init` step 1.
+
+---
+
+## 2026-10-14 · uv + gh install, then git + public repo
+
+- **Model:** `?` (Claude Code CLI 2.1.299; `/status` still not readable from inside the
+  session — please fill in)
+- **Asked:** Install GitHub CLI and uv without administrator rights into the user folder and
+  check both work; then create a public repo `mlr-agent-lab` from this folder, showing what
+  would be uploaded before pushing.
+- **Checked:**
+  - install: both archives matched their published sha256 before extraction
+    (`gh 2.102.0` → `ae64e556…`, `uv 0.13.1` → `3b2661a4…`); `cmd.exe` `where gh/uv/uvx`
+    resolved them, so they are on the Windows PATH and not just in Git Bash;
+    `uv run --python 3.12 python -c …` downloaded a managed CPython 3.12.15 and ran it →
+    exit 0. No admin rights used: official `-windows_msvc` zips unpacked into
+    `C:\Users\alena\.local\bin`, which was already on the user PATH, so no PATH edit;
+  - pre-push: grep sweep for token/private-key/password patterns over all 6 files → clean;
+    no `.env`/`.pem`/`.key`/`credentials` files; staged manifest compared against
+    `git status --untracked-files=all` so nothing was silently dropped;
+    `git check-ignore` confirmed the new `.gitignore` excluded none of the 7 intended files;
+  - post-push: `gh api …/git/trees/main?recursive=1` — remote tree byte-identical to the
+    local manifest; `gh repo view` → `visibility: PUBLIC`, default branch `main`.
+- **Result:** `gh` 2.102.0 and `uv` 0.13.1 installed user-level. Repo live at
+  https://github.com/256995/mlr-agent-lab. Commit 1 = the 6 existing files + `.gitignore`
+  (7 files, 228 lines). Commit 2 = this doc sync. Commit author email is
+  `256995@vutbr.cz`, chosen knowingly.
+- **Not checked:** `gh auth status` was verified but `gh api` was not exercised against the
+  repo before the push; `uv init` step 1 of `PLAN.md` was *not* run.
+- **Open:** `/status` model value; lab's real goal; whether `RUNS.md` should keep naming the
+  internal `llm.ai.e-infra.cz` endpoint now that the repo is public.

@@ -44,9 +44,11 @@ README.md            this file
 PLAN.md              progress + next step
 RUNS.md              run log
 random_greeting.py   example script: prints one random greeting
+.gitignore           venv/caches ignored, uv.lock kept
 ```
 
 ## Not set up yet
 
-Python project metadata (`pyproject.toml` / `uv.lock` / `.venv`), tests, linting, and git.
-See `PLAN.md` for the order.
+Python project metadata (`pyproject.toml` / `uv.lock` / `.venv`), tests, and linting.
+Git is set up: branch `main`, remote `origin`, `.gitignore` in place (`uv.lock` stays
+tracked on purpose). See `PLAN.md` for the order.

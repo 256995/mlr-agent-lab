@@ -58,7 +58,8 @@ fails, report the failing output verbatim. "It should work" is not a check.
 
 ## 6. House rules
 
-- No git repo here yet. Do not `git init`, commit, or push unless asked.
+- Git is set up (branch `main`, remote `origin` on GitHub). Commit and push **only when
+  asked** — the rule against unprompted pushes still stands.
 - Ask before deleting or overwriting anything you did not create.
 - Match the style of existing code: module docstring, `main() -> None`, type hints,
   English identifiers, natural-language greeting strings as-is.

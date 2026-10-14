@@ -12,6 +12,8 @@ Last updated: 2026-10-14
 - [x] `README.md` — goal and how to run things.
 - [x] `RUNS.md` — run log started with the setup run.
 - [x] Verified the example script runs: `PYTHONUTF8=1 uv run --no-project random_greeting.py` → exit 0.
+- [x] `git init` + first commit + public repo `github.com/256995/mlr-agent-lab` (branch `main`,
+      `.gitignore` added, `uv.lock` deliberately not ignored).
 
 ## Not yet decided
 
@@ -30,12 +32,12 @@ uv run ruff check .                      # must pass
 uv run pytest -q                         # passes with zero tests collected
 ```
 
-Commit `pyproject.toml` **and** `uv.lock` (after `git init`, when asked). Then replace
-the `--no-project` flag in `README.md` with the normal `uv run` form.
+Commit `pyproject.toml` **and** `uv.lock` (when asked). Then replace the `--no-project`
+flag in `README.md` with the normal `uv run` form.
 
 ## Later
 
-- [ ] `git init` + first commit (only when asked — see `AGENTS.md` §6).
+- [x] ~~`git init` + first commit~~ — done 2026-10-14, repo is public (see `RUNS.md`).
 - [ ] One real test around `random_greeting` (e.g. seeded choice, all greetings valid UTF-8).
 - [ ] Task runner so checks are one command (`uv run task check` or a `Makefile`).
 - [ ] Decide and record the lab's actual goal in `README.md`.
