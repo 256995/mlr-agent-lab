@@ -42,9 +42,21 @@ Nothing counts as done until it has been run in this repo and passed. Required, 
 | Check | Command |
 | --- | --- |
 | Code runs | `PYTHONUTF8=1 uv run <entrypoint>` (exit code 0, output looks right) |
-| Tests | `uv run pytest -q` — once pytest is installed (see `PLAN.md`) |
-| Lint / format | `uv run ruff check .` — once installed |
+| Lint | `uv run --dev ruff check .` (and `ruff format --check .`) |
+| Tests | `uv run --dev pytest -q` — once pytest is added (see `PLAN.md`) |
+| Browser code | `uv run --dev snake/check.py "<url?selftest=1>"` — real Chrome, exit 0 |
 | Docs in sync | `README.md` / `PLAN.md` reflect the change you just made |
+
+Two limits worth knowing, both learned the hard way here:
+
+- The in-page core checks (`?selftest=1`) are cheap and deterministic — but they only
+  prove the *pure* logic. The RAF loop, input handling and rendering need the DevTools
+  harness: Chrome's `--virtual-time-budget` fires `requestAnimationFrame` once per page,
+  so a game loop cannot be exercised without real time over CDP.
+- A green check is only as good as its assertion. Two of the snake failures were the
+  harness being wrong (food placed behind the snake; score assumed to be exactly 1) and
+  one was a real bug (the HUD never re-rendered while playing). When a check fails, work
+  out which of the two it is before touching either.
 
 If you did not run it, say so explicitly instead of implying it passed. If a check
 fails, report the failing output verbatim. "It should work" is not a check.

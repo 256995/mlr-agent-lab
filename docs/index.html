@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess pawn — CadQuery viewer</title>
+<meta name="description" content="A chess pawn modelled in CadQuery, viewable and rotatable in 3D.">
+<style>
+  :root {
+    --bg: #14161b;
+    --panel: #1c2027;
+    --ink: #e9edf4;
+    --muted: #8f9bad;
+    --line: #2b3138;
+    --accent: #7cc4ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: .01em; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  #stage { position: relative; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+  #hud {
+    position: absolute;
+    inset: 12px auto auto 12px;
+    background: color-mix(in srgb, var(--panel) 82%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    color: var(--muted);
+    max-width: 232px;
+    backdrop-filter: blur(6px);
+  }
+  #hud b { color: var(--ink); font-weight: 600; }
+  #hud dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+  #hud dt { color: var(--muted); }
+  #hud dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 10px 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  button {
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .spacer { flex: 1; }
+  .hint { color: var(--muted); font-size: 12.5px; }
+  a { color: var(--accent); }
+  #status {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: 8px;
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+  }
+  #status[hidden] { display: none; }
+  @media (max-width: 560px) { #hud { display: none; } }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<header>
+  <h1>Chess pawn</h1>
+  <p>Solid of revolution, modelled in CadQuery &middot; <span id="dims">&mdash;</span></p>
+</header>
+
+<div id="stage">
+  <canvas id="view"></canvas>
+  <div id="hud" hidden>
+    <dl id="stats"></dl>
+  </div>
+  <div id="status">Loading mesh&hellip;</div>
+</div>
+
+<footer>
+  <button id="spin" aria-pressed="true">Auto-rotate</button>
+  <button id="reset">Reset view</button>
+  <button id="wire" aria-pressed="false">Wireframe</button>
+  <button id="shade" aria-pressed="true">Smooth</button>
+  <span class="spacer"></span>
+  <span class="hint">Drag to rotate &middot; scroll to zoom &middot; right-drag to pan</span>
+</footer>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+const canvas = document.getElementById('view');
+const statusEl = document.getElementById('status');
+const hudEl = document.getElementById('hud');
+const statsEl = document.getElementById('stats');
+
+// The mesh is stored CAD-style: millimetres, Z up, base sitting on Z=0.
+// Rotating the whole scene graph once by -90 degrees about X puts it on the
+// Y-up ground plane three.js expects, without touching any vertex data.
+const UP_FIX = -Math.PI / 2;
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14161b);
+scene.fog = new THREE.Fog(0x14161b, 120, 260);
+
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 1000);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.1;
+controls.minDistance = 18;
+controls.maxDistance = 160;
+controls.maxPolarAngle = Math.PI * 0.52; // stay above the table
+controls.target.set(0, 11, 0);
+
+// Lighting reads the piece as ivory on a dark table: a warm key with a real
+// shadow, a cool sky fill, and a rim light to separate the silhouette.
+scene.add(new THREE.HemisphereLight(0xbdd4ff, 0x2a2622, 0.55));
+
+const key = new THREE.DirectionalLight(0xfff2e0, 2.1);
+key.position.set(26, 40, 22);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 5;
+key.shadow.camera.far = 120;
+key.shadow.camera.left = -30;
+key.shadow.camera.right = 30;
+key.shadow.camera.top = 40;
+key.shadow.camera.bottom = -10;
+key.shadow.bias = -0.0004;
+key.shadow.radius = 3;
+scene.add(key);
+
+const rim = new THREE.DirectionalLight(0x9fc6ff, 0.9);
+rim.position.set(-30, 14, -24);
+scene.add(rim);
+
+const table = new THREE.Mesh(
+  new THREE.CircleGeometry(90, 64),
+  new THREE.MeshStandardMaterial({ color: 0x22262d, roughness: 0.94, metalness: 0 })
+);
+table.rotation.x = -Math.PI / 2;
+table.receiveShadow = true;
+scene.add(table);
+
+const grid = new THREE.GridHelper(120, 60, 0x3a424c, 0x2a3038);
+grid.material.transparent = true;
+grid.material.opacity = 0.35;
+grid.position.y = 0.01;
+scene.add(grid);
+
+const pivot = new THREE.Group();
+pivot.rotation.x = UP_FIX;
+scene.add(pivot);
+
+let mesh = null;
+let solidMat = null;
+let flatMat = null;
+const wireMat = new THREE.MeshBasicMaterial({ color: 0x7cc4ff, wireframe: true });
+
+/** Turn the exported buffers into a BufferGeometry, still in CAD axes. */
+function toGeometry(data) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(data.position, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(data.normal, 3));
+  g.setIndex(data.index);
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
+
+function fillStats(meta, tris, verts) {
+  const rows = [
+    ['height', `${meta.height.toFixed(1)} mm`],
+    ['base', `&varnothing; ${meta.baseDiameter.toFixed(1)} mm`],
+    ['head', `&varnothing; ${meta.headDiameter.toFixed(1)} mm`],
+    ['volume', `${meta.volumeMm3.toFixed(0)} mm&sup3;`],
+    ['CAD faces', meta.sourceFaces],
+    ['triangles', tris.toLocaleString('en')],
+    ['vertices', verts.toLocaleString('en')],
+  ];
+  statsEl.innerHTML = rows
+    .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
+    .join('');
+  document.getElementById('dims').textContent =
+    `${meta.baseDiameter.toFixed(1)} mm wide, ${meta.height.toFixed(1)} mm tall`;
+}
+
+async function load() {
+  let data;
+  try {
+    const res = await fetch('./pawn.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    // fetch() fails outright on file://, so point the user at the server.
+    const local = location.protocol === 'file:';
+    statusEl.innerHTML = local
+      ? '<b>Open this page over HTTP, not as a file.</b><span>' +
+        'Run <code>uv run python -m http.server 8000</code> in the repo root, then ' +
+        'visit <code>http://localhost:8000/docs/</code>.</span>'
+      : `<b>Could not load pawn.json</b><span>${err.message}</span>`;
+    return;
+  }
+
+  const geometry = toGeometry(data);
+
+  solidMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf1e6d0,
+    roughness: 0.42,
+    metalness: 0.0,
+    clearcoat: 0.25,
+    clearcoatRoughness: 0.5,
+    side: THREE.FrontSide,
+  });
+  flatMat = new THREE.MeshStandardMaterial({
+    color: 0xdfe6ef,
+    roughness: 0.35,
+    metalness: 0.05,
+    // Vertex normals baked in the export carry the crease split; recomputing
+    // flat normals instead is what the "Smooth" toggle turns off.
+    flatShading: true,
+  });
+
+  mesh = new THREE.Mesh(geometry, solidMat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  pivot.add(mesh);
+
+  // Frame the piece from the geometry itself rather than a hardcoded distance,
+  // so a resize of the model in CadQuery needs no change here. The pivot turns
+  // the model -90 deg about X, so a CAD point (x, y, z) lands at (x, z, -y).
+  const center = geometry.boundingBox.getCenter(new THREE.Vector3());
+  const worldCenter = new THREE.Vector3(center.x, center.z, -center.y);
+  const radius = geometry.boundingSphere.radius;
+  controls.target.copy(worldCenter);
+  const dist = (radius / Math.sin((camera.fov * Math.PI) / 360)) * 1.45;
+  camera.position.set(
+    worldCenter.x + dist * 0.55,
+    worldCenter.y + radius * 0.55,
+    worldCenter.z + dist * 0.74
+  );
+  controls.update();
+  // Only now is the view right, so this is the state Reset returns to.
+  controls.saveState();
+
+  fillStats(data.meta, data.index.length / 3, data.position.length / 3);
+  hudEl.hidden = false;
+  statusEl.hidden = true;
+  resize();
+}
+
+function resize() {
+  const w = canvas.clientWidth || canvas.parentElement.clientWidth;
+  const h = canvas.clientHeight || canvas.parentElement.clientHeight;
+  if (canvas.width === w && canvas.height === h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas.parentElement);
+
+document.getElementById('spin').addEventListener('click', (e) => {
+  controls.autoRotate = !controls.autoRotate;
+  e.currentTarget.setAttribute('aria-pressed', String(controls.autoRotate));
+});
+
+document.getElementById('reset').addEventListener('click', () => {
+  controls.reset();
+});
+
+document.getElementById('wire').addEventListener('click', (e) => {
+  if (!mesh) return;
+  const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  e.currentTarget.setAttribute('aria-pressed', String(on));
+  mesh.material = on ? wireMat : solidMat;
+});
+
+document.getElementById('shade').addEventListener('click', (e) => {
+  if (!mesh) return;
+  const smooth = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  e.currentTarget.setAttribute('aria-pressed', String(smooth));
+  e.currentTarget.textContent = smooth ? 'Smooth' : 'Faceted';
+  mesh.material = smooth ? solidMat : flatMat;
+});
+
+// Stop auto-rotation the moment the user takes hold of it.
+canvas.addEventListener('pointerdown', () => {
+  if (!controls.autoRotate) return;
+  controls.autoRotate = false;
+  document.getElementById('spin').setAttribute('aria-pressed', 'false');
+});
+
+renderer.setAnimationLoop(() => {
+  resize();
+  controls.update();
+  renderer.render(scene, camera);
+});
+
+load();
+</script>
+</body>
+</html>
